@@ -8,6 +8,9 @@ using Bicep.Core.UnitTests.Utils;
 using Newtonsoft.Json.Linq;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.Resources;
+using System.Text.RegularExpressions;
+using System.Collections;
+using System.Linq;
 
 namespace Bicep.Core.IntegrationTests
 {
@@ -1564,6 +1567,30 @@ output vmExtName string = vm::vmExt.name
 
             result.Should().NotHaveDiagnostics();
             result.Template.Should().NotBeNull();
+        }
+
+        [TestMethod]
+        // https://github.com/azure/bicep/issues/691
+        public void Test_Issue691()
+        {
+            var result = CompilationHelper.Compile(@"
+var vmNotWorkingProps = {
+  valThatDoesNotExist: ''
+}
+
+resource vmNotWorking 'Microsoft.Compute/virtualMachines@2020-06-01' = {
+  name: 'notWorking'
+  location: 'west us'
+  // no diagnostics raised here even though the type is invalid!
+  properties: vmNotWorkingProps
+//@           ~~~~~~~~~~~~~~~~~ $0
+}
+");
+
+
+            result.Should().HaveDiagnostics(new[] {
+                ("BCP037", DiagnosticLevel.Warning, "The property \"valThatDoesNotExist\" is not allowed on objects of type \"VirtualMachineProperties\". From source declaration \"vmNotWorkingProps\". Permissible properties include \"additionalCapabilities\", \"availabilitySet\", \"billingProfile\", \"diagnosticsProfile\", \"evictionPolicy\", \"extensionsTimeBudget\", \"hardwareProfile\", \"host\", \"hostGroup\", \"licenseType\", \"networkProfile\", \"osProfile\", \"priority\", \"proximityPlacementGroup\", \"securityProfile\", \"storageProfile\", \"virtualMachineScaleSet\"."),
+            });
         }
 
         [TestMethod]
